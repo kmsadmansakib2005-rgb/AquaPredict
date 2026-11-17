@@ -112,7 +112,23 @@ def automatic_pump_simulation(
             elapsed += segment
             remaining -= segment
 
-        times.append(interval_start + min(time_step, simulation_time - interval_start))
+        interval_end = interval_start + min(time_step, simulation_time - interval_start)
+        if pump_on and water_volume >= high_level - 1e-9:
+            pump_on = False
+            pump_events.append({
+                "time": interval_end,
+                "pump_on": False,
+                "reason": f"Upper threshold reached ({pump_off_at_percent:g}%)"
+            })
+        elif not pump_on and water_volume <= low_level + 1e-9:
+            pump_on = True
+            pump_events.append({
+                "time": interval_end,
+                "pump_on": True,
+                "reason": f"Lower threshold reached ({pump_on_below_percent:g}%)"
+            })
+
+        times.append(interval_end)
         water_levels.append(water_volume)
         pump_states.append(pump_on)
 
