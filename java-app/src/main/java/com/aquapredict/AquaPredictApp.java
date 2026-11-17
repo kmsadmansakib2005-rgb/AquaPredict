@@ -346,6 +346,11 @@ public class AquaPredictApp extends JFrame {
         private final JTextField outflow = field("5");
         private final JTextField duration = field("10");
         private final JTextField step = field("1");
+        private final JTextField pumpOnBelow = field("30");
+        private final JTextField pumpOffAt = field("90");
+        private final JCheckBox automaticPump = new JCheckBox("Enable automatic virtual pump", true);
+        private final JLabel pumpStatus = new JLabel("Pump: --");
+        private final JLabel pumpEventSummary = new JLabel("Pump events will appear after simulation.");
         private final JLabel finalVolume = new JLabel("-- L");
         private final WaterChart chart = new WaterChart();
         private final TankDrawing tank = new TankDrawing();
@@ -377,6 +382,24 @@ public class AquaPredictApp extends JFrame {
             addField(form, "Outflow rate (L/min)", outflow);
             addField(form, "Simulation duration (min)", duration);
             addField(form, "Time step (min)", step);
+            form.add(Box.createVerticalStrut(12));
+            form.add(sectionLabel("Automatic pump control"));
+            automaticPump.setBackground(PANEL);
+            automaticPump.setForeground(TEXT);
+            automaticPump.setFocusPainted(false);
+            automaticPump.setAlignmentX(Component.LEFT_ALIGNMENT);
+            form.add(automaticPump);
+            addField(form, "Switch pump ON below water level (%)", pumpOnBelow);
+            addField(form, "Switch pump OFF at water level (%)", pumpOffAt);
+            pumpStatus.setForeground(GREEN);
+            pumpStatus.setFont(new Font("SansSerif", Font.BOLD, 15));
+            pumpStatus.setAlignmentX(Component.LEFT_ALIGNMENT);
+            pumpEventSummary.setForeground(MUTED);
+            pumpEventSummary.setFont(new Font("SansSerif", Font.PLAIN, 10));
+            pumpEventSummary.setAlignmentX(Component.LEFT_ALIGNMENT);
+            form.add(Box.createVerticalStrut(8));
+            form.add(pumpStatus);
+            form.add(pumpEventSummary);
             JButton run = actionButton("Run Simulation");
             run.setAlignmentX(Component.LEFT_ALIGNMENT);
             run.setBorder(new EmptyBorder(12, 20, 12, 20));
@@ -398,7 +421,7 @@ public class AquaPredictApp extends JFrame {
             visual.add(chartTitle);
             visual.add(chart);
 
-            content.add(form);
+            content.add(scrollForm(form));
             content.add(visual);
             add(content, BorderLayout.CENTER);
         }
@@ -413,8 +436,18 @@ public class AquaPredictApp extends JFrame {
                 request.addProperty("outflow_rate", number(outflow));
                 request.addProperty("simulation_time", integer(duration));
                 request.addProperty("time_step", integer(step));
+                request.addProperty("automatic_pump", automaticPump.isSelected());
+                request.addProperty("pump_on_below_percent", number(pumpOnBelow));
+                request.addProperty("pump_off_at_percent", number(pumpOffAt));
                 if (integer(duration) <= 0 || integer(step) <= 0) {
                     throw new IllegalArgumentException("Duration and time step must be positive integers.");
+                }
+                if (automaticPump.isSelected()
+                        && (number(pumpOnBelow) < 0
+                        || number(pumpOffAt) > 100
+                        || number(pumpOnBelow) >= number(pumpOffAt))) {
+                    throw new IllegalArgumentException(
+                            "Pump thresholds must satisfy 0 <= ON threshold < OFF threshold <= 100.");
                 }
                 runPython(request, result -> {
                     double finalValue = result.get("final_volume").getAsDouble();
@@ -426,6 +459,19 @@ public class AquaPredictApp extends JFrame {
                     chart.setData(times, levels);
                     dashboardChart.setData(times, levels);
                     tank.setLevel(finalValue / number(capacity));
+                    if (automaticPump.isSelected()) {
+                        boolean pumpOn = result.get("pump_on").getAsBoolean();
+                        pumpStatus.setText("Virtual pump: " + (pumpOn ? "ON" : "OFF"));
+                        pumpStatus.setForeground(pumpOn ? GREEN : new Color(255, 120, 105));
+                        JsonArray events = result.getAsJsonArray("pump_events");
+                        pumpEventSummary.setText(events.size() + " pump state event(s) during simulation");
+                        dashboardStatus.setText("Pump " + (pumpOn ? "ON" : "OFF") + " • Simulation complete");
+                    } else {
+                        pumpStatus.setText("Virtual pump: DISABLED");
+                        pumpStatus.setForeground(MUTED);
+                        pumpEventSummary.setText("Open-loop simulation: pump control is disabled.");
+                        dashboardStatus.setText("Simulation complete • Pump control disabled");
+                    }
                 });
             } catch (Exception ex) {
                 showInputError(ex);
