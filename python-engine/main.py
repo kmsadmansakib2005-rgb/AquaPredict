@@ -2,7 +2,7 @@
 import json
 import sys
 
-from tank_model import euler_method as tank_euler
+from tank_model import euler_method as tank_euler, automatic_pump_simulation
 
 from numerical_methods.root_finding import (
     bisection, false_position, newton_raphson
@@ -23,6 +23,18 @@ def process_request(data):
 
     if operation == "tank_simulation":
 
+        if data.get("automatic_pump", False):
+            return automatic_pump_simulation(
+                data["capacity"],
+                data["initial_water"],
+                data["inflow_rate"],
+                data["outflow_rate"],
+                data["simulation_time"],
+                data["time_step"],
+                data.get("pump_on_below_percent", 30),
+                data.get("pump_off_at_percent", 90)
+            )
+
         times, levels = tank_euler(
             data["capacity"],
             data["initial_water"],
@@ -35,7 +47,11 @@ def process_request(data):
         return {
             "times": times,
             "water_levels": levels,
-            "final_volume": levels[-1]
+            "final_volume": levels[-1],
+            "pump_enabled": False,
+            "pump_on": False,
+            "pump_events": [],
+            "pump_states": []
         }
 
     elif operation == "root_finding":
