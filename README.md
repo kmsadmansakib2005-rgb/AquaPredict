@@ -1,6 +1,6 @@
 # AquaPredict
 
-**AquaPredict – Smart Water Tank Simulation, Prediction & Numerical Analysis System**
+**AquaPredict – Smart Water Tank Simulation and Filling-Time Prediction System**
 
 A desktop application built with Java Swing and Python. Java provides the user interface, while the Python engine performs numerical calculations. The two parts communicate through JSON over standard input/output.
 
@@ -17,7 +17,6 @@ AquaPredict/
     ├── tank_model.py
     └── numerical_methods/
         ├── root_finding.py
-        ├── linear_equations.py
         └── ode_methods.py
 ```
 
@@ -51,14 +50,30 @@ The application looks for the sibling `python-engine` directory automatically. R
 ## Features
 
 - Dashboard with simulation summary
-- Virtual tank visualization
-- Water-level chart
-- Tank simulation using Euler's method
-- Root finding: Bisection, False Position, Newton-Raphson
-- Linear equations: Gauss Elimination and Gauss-Jordan
-- ODE methods: Euler, Modified Euler and RK4
+- Virtual tank visualization and water-level chart
+- Tank simulation with a virtual automatic pump
+- **Predictor:** estimates the time required to reach a selected tank level
+- Root-finding prediction methods: Bisection, False Position and Newton-Raphson
+- ODE prediction methods: Euler, Modified Euler and fourth-order Runge-Kutta (RK4)
 - Java Swing ↔ Python JSON integration
+
+## How Predictor works
+
+Enter the tank capacity, current water volume, target water-level percentage, inflow and outflow rates, then choose one of the six numerical methods.
+
+The model allows the inflow rate to increase linearly with time:
+
+`Q_{in}(t) = Q_0 + kt`
+
+The tank volume model is:
+
+`V(t) = V_0 + (Q_0-Q_{out})t + \frac{1}{2}kt^2`
+
+- Bisection, False Position and Newton-Raphson solve for the time at which the target volume is reached.
+- Euler, Modified Euler and RK4 numerically integrate the water-volume differential equation. Predictor estimates the target-crossing time from the computed time steps.
+
+For the root-finding methods, provide a time interval that brackets the target time; Newton-Raphson also uses an initial guess. For the ODE methods, the time step and maximum prediction time control the numerical simulation.
 
 ## Notes
 
-The initial version is a software-only virtual tank simulation. Physical sensor integration can be added as a future extension.
+AquaPredict is a software-only simulation and prediction tool. It does not read physical tank sensors or control a real pump or motor. Physical hardware integration can be considered as a future extension.
