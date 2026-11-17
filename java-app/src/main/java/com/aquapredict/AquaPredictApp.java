@@ -345,7 +345,7 @@ public class AquaPredictApp extends JFrame {
         private final JTextField initial = field("300");
         private final JTextField inflow = field("20");
         private final JTextField outflow = field("5");
-        private final JTextField duration = field("10");
+        private final JTextField duration = field("50");
         private final JTextField step = field("1");
         private final JTextField pumpOnBelow = field("30");
         private final JTextField pumpOffAt = field("90");
@@ -463,6 +463,20 @@ public class AquaPredictApp extends JFrame {
                             "Pump thresholds must satisfy 0 <= ON threshold < OFF threshold <= 100.");
                 }
 
+                double startingCapacity = number(capacity);
+                double startingVolume = number(initial);
+                boolean startingPump = automaticPump.isSelected()
+                        && startingVolume < startingCapacity * number(pumpOffAt) / 100.0;
+                tank.setState(startingVolume / startingCapacity, startingPump, 0);
+                finalVolume.setText(String.format("%.1f L", startingVolume));
+                simulationClock.setText("Elapsed time: 0.0 min");
+                pumpStatus.setText(startingPump ? "MOTOR ON • PUMPING WATER"
+                        : automaticPump.isSelected() ? "MOTOR OFF" : "MOTOR CONTROL DISABLED");
+                pumpStatus.setForeground(startingPump ? GREEN
+                        : automaticPump.isSelected() ? new Color(255, 120, 105) : MUTED);
+                pumpEventSummary.setText(startingPump
+                        ? "Water is starting to flow into the tank..."
+                        : "Motor is not running.");
                 runPython(request, result -> {
                     preparingSimulation = false;
                     List<Double> times = toList(result.getAsJsonArray("times"));
