@@ -512,6 +512,9 @@ public class AquaPredictApp extends JFrame {
                 return;
             }
 
+            // Automatic low-level protection always has priority over a manual OFF command.
+            if (!motorOn && currentVolume < lowThreshold) motorOn = true;
+
             double previousVolume = currentVolume;
             double rate = (motorOn ? inflowRate : 0.0) - outflowRate;
             currentVolume += rate * deltaTime;
@@ -522,7 +525,7 @@ public class AquaPredictApp extends JFrame {
             if (motorOn && previousVolume < highThreshold && currentVolume >= highThreshold) {
                 currentVolume = highThreshold;
                 motorOn = false;
-            } else if (!motorOn && previousVolume > lowThreshold && currentVolume <= lowThreshold) {
+            } else if (!motorOn && previousVolume >= lowThreshold && currentVolume <= lowThreshold) {
                 currentVolume = lowThreshold;
                 motorOn = true;
             }
