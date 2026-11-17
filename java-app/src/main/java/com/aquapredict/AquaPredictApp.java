@@ -7,7 +7,6 @@ import com.google.gson.JsonParser;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.*;
 import java.awt.geom.Path2D;
 import java.io.BufferedReader;
@@ -51,7 +50,7 @@ public class AquaPredictApp extends JFrame {
         pages.setBackground(BG);
         pages.add(new DashboardPanel(), "Dashboard");
         pages.add(tankPanel, "Tank Simulation");
-        pages.add(new LabPanel(), "Numerical Lab");
+        pages.add(new PredictorPanel(), "Predictor");
 
         add(buildSidebar(), BorderLayout.WEST);
         add(pages, BorderLayout.CENTER);
@@ -80,7 +79,7 @@ public class AquaPredictApp extends JFrame {
         side.add(Box.createVerticalStrut(9));
         side.add(navButton("Tank Simulation", "Simulate water levels"));
         side.add(Box.createVerticalStrut(9));
-        side.add(navButton("Numerical Lab", "Run numerical methods"));
+        side.add(navButton("Predictor", "Predict tank filling time"));
 
         side.add(Box.createVerticalGlue());
         JLabel version = new JLabel("AQUAPREDICT  •  VERSION 1.0");
@@ -417,10 +416,10 @@ public class AquaPredictApp extends JFrame {
             metrics.setBackground(BG);
             metrics.add(metric("LATEST WATER VOLUME", dashboardVolume, "From your last simulation"));
             metrics.add(metric("SYSTEM STATUS", dashboardStatus, "Python calculation engine"));
-            JLabel methods = new JLabel("9");
+            JLabel methods = new JLabel("6");
             methods.setForeground(TEXT);
             methods.setFont(new Font("SansSerif", Font.BOLD, 25));
-            metrics.add(metric("NUMERICAL METHODS", methods, "Available across 3 categories"));
+            metrics.add(metric("NUMERICAL METHODS", methods, "Root finding and ODE methods"));
 
             JPanel chartCard = cardPanel();
             chartCard.add(sectionLabel("Water level overview"));
@@ -430,9 +429,9 @@ public class AquaPredictApp extends JFrame {
             JButton simulate = actionButton("Open Tank Simulation");
             simulate.setAlignmentX(Component.LEFT_ALIGNMENT);
             simulate.addActionListener(e -> showPage("Tank Simulation"));
-            JButton lab = actionButton("Open Numerical Lab");
+            JButton lab = actionButton("Open Predictor");
             lab.setAlignmentX(Component.LEFT_ALIGNMENT);
-            lab.addActionListener(e -> showPage("Numerical Lab"));
+            lab.addActionListener(e -> showPage("Predictor"));
             quick.add(simulate);
             quick.add(Box.createVerticalStrut(10));
             quick.add(lab);
@@ -729,222 +728,50 @@ public class AquaPredictApp extends JFrame {
         return scroll;
     }
 
-    private class LabPanel extends JPanel {
-        LabPanel() {
-            setBackground(BG);
-            setBorder(new EmptyBorder(28, 30, 24, 30));
-            setLayout(new BorderLayout(0, 18));
-            JPanel heading = new JPanel();
-            heading.setBackground(BG);
-            heading.setLayout(new BoxLayout(heading, BoxLayout.Y_AXIS));
-            JLabel title = new JLabel("Numerical Methods Laboratory");
-            title.setForeground(TEXT);
-            title.setFont(new Font("SansSerif", Font.BOLD, 26));
-            JLabel sub = new JLabel("Run the methods from your Numerical Methods Lab syllabus.");
-            sub.setForeground(MUTED);
-            heading.add(title);
-            heading.add(Box.createVerticalStrut(6));
-            heading.add(sub);
-            add(heading, BorderLayout.NORTH);
-
-            JTabbedPane tabs = new JTabbedPane();
-            tabs.setOpaque(true);
-            tabs.setBackground(PANEL);
-            tabs.setForeground(TEXT);
-            tabs.setUI(new BasicTabbedPaneUI() {
-                @Override
-                protected void paintTabBackground(Graphics g, int placement, int index,
-                                                  int x, int y, int width, int height,
-                                                  boolean selected) {
-                    g.setColor(selected ? GREEN : PANEL_LIGHT);
-                    g.fillRect(x, y, width, height);
-                }
-
-                @Override
-                protected void paintTabBorder(Graphics g, int placement, int index,
-                                              int x, int y, int width, int height,
-                                              boolean selected) {
-                    // Flat tabs keep the dark interface visually consistent.
-                }
-
-                @Override
-                protected void paintContentBorder(Graphics g, int placement, int selectedIndex) {
-                    // The parent panel supplies the dark content background.
-                }
-            });
-            tabs.addTab("Root Finding", new RootPanel());
-            tabs.addTab("Linear Equations", new LinearPanel());
-            tabs.addTab("ODE Methods", new OdePanel());
-            tabs.addChangeListener(e -> {
-                for (int i = 0; i < tabs.getTabCount(); i++) {
-                    tabs.setForegroundAt(i, i == tabs.getSelectedIndex()
-                            ? new Color(8, 25, 22) : TEXT);
-                }
-            });
-            tabs.setForegroundAt(0, new Color(8, 25, 22));
-            add(tabs, BorderLayout.CENTER);
-        }
-    }
-
-    private class RootPanel extends JPanel {
-        private final JComboBox<String> method = new JComboBox<>(
-                new String[]{"Bisection", "False Position", "Newton-Raphson"});
+    private class PredictorPanel extends JPanel {
+        private final JComboBox<String> method = new JComboBox<>(new String[]{
+                "Bisection", "False Position", "Newton-Raphson", "Euler", "Modified Euler", "Runge-Kutta 4 (RK4)"});
+        private final JTextField capacity = field("1000");
         private final JTextField initial = field("300");
+        private final JTextField targetPercent = field("80");
         private final JTextField inflow = field("20");
+        private final JTextField inflowIncrease = field("0.5");
         private final JTextField outflow = field("5");
-        private final JTextField target = field("800");
-        private final JTextField a = field("0");
-        private final JTextField b = field("100");
-        private final JTextField guess = field("50");
+        private final JTextField step = field("0.5");
+        private final JTextField maxTime = field("100");
+        private final JTextField lowerBound = field("0");
+        private final JTextField upperBound = field("100");
+        private final JTextField initialGuess = field("20");
         private final JTextArea output = outputArea();
 
-        RootPanel() {
+        PredictorPanel() {
             setBackground(BG);
+            setBorder(new EmptyBorder(8, 0, 0, 0));
             setLayout(new GridLayout(1, 2, 15, 0));
             JPanel form = cardPanel();
-            form.add(sectionLabel("Root finding parameters"));
-            addField(form, "Method", method);
-            addField(form, "Initial water (L)", initial);
-            addField(form, "Inflow rate (L/min)", inflow);
+            form.add(sectionLabel("Tank and flow parameters"));
+            addField(form, "Numerical method", method);
+            addField(form, "Tank capacity (L)", capacity);
+            addField(form, "Initial water volume (L)", initial);
+            addField(form, "Target tank level (%)", targetPercent);
+            addField(form, "Base inflow rate (L/min)", inflow);
+            addField(form, "Inflow increase (L/min per minute)", inflowIncrease);
             addField(form, "Outflow rate (L/min)", outflow);
-            addField(form, "Target water level (L)", target);
-            addField(form, "Lower bound (a)", a);
-            addField(form, "Upper bound (b)", b);
-            addField(form, "Initial guess (Newton-Raphson)", guess);
-            JButton run = actionButton("Calculate root");
+            addField(form, "Time step for ODE methods (min)", step);
+            addField(form, "Maximum prediction time (min)", maxTime);
+            form.add(Box.createVerticalStrut(8));
+            form.add(sectionLabel("Root-finding parameters"));
+            addField(form, "Lower time bound (a)", lowerBound);
+            addField(form, "Upper time bound (b)", upperBound);
+            addField(form, "Initial guess (Newton-Raphson)", initialGuess);
+            JButton run = actionButton("Predict Filling Time");
             run.setAlignmentX(Component.LEFT_ALIGNMENT);
             run.addActionListener(e -> calculate());
-            form.add(Box.createVerticalStrut(12));
-            form.add(run);
-            JPanel result = cardPanel();
-            result.add(sectionLabel("Calculation result"));
-            result.add(new JScrollPane(output));
-            add(scrollForm(form));
-            add(result);
-        }
-
-        private void calculate() {
-            try {
-                String selected = method.getSelectedItem().toString();
-                String key = selected.equals("Newton-Raphson") ? "newton_raphson"
-                        : selected.equals("False Position") ? "false_position" : "bisection";
-                JsonObject req = new JsonObject();
-                req.addProperty("operation", "root_finding");
-                req.addProperty("method", key);
-                req.addProperty("initial_water", number(initial));
-                req.addProperty("inflow_rate", number(inflow));
-                req.addProperty("outflow_rate", number(outflow));
-                req.addProperty("target_water", number(target));
-                req.addProperty("a", number(a));
-                req.addProperty("b", number(b));
-                req.addProperty("initial_guess", number(guess));
-                runPython(req, result -> output.setText(
-                        "Method: " + selected + "\n\nTime to reach target: "
-                                + result.get("root").getAsDouble() + " minutes\n"
-                                + "Iterations: " + result.get("iterations").getAsInt()));
-            } catch (Exception ex) {
-                showInputError(ex);
-            }
-        }
-    }
-
-    private class LinearPanel extends JPanel {
-        private final JComboBox<String> method = new JComboBox<>(
-                new String[]{"Gauss Elimination", "Gauss-Jordan"});
-        private final JTextField matrix = field("2,1,1;3,2,1;1,2,3");
-        private final JTextField constants = field("10,14,14");
-        private final JTextArea output = outputArea();
-
-        LinearPanel() {
-            setBackground(BG);
-            setLayout(new GridLayout(1, 2, 15, 0));
-            JPanel form = cardPanel();
-            form.add(sectionLabel("Linear system"));
-            addField(form, "Method", method);
-            addField(form, "Coefficient matrix (rows separated by ;)", matrix);
-            addField(form, "Constant vector (comma separated)", constants);
-            JLabel hint = new JLabel("<html>Example: 2,1,1;3,2,1;1,2,3<br>and 10,14,14</html>");
-            hint.setForeground(MUTED);
-            hint.setFont(new Font("SansSerif", Font.PLAIN, 11));
-            form.add(Box.createVerticalStrut(9));
-            form.add(hint);
-            JButton run = actionButton("Solve system");
-            run.setAlignmentX(Component.LEFT_ALIGNMENT);
-            run.addActionListener(e -> solve());
             form.add(Box.createVerticalStrut(14));
             form.add(run);
             JPanel result = cardPanel();
-            result.add(sectionLabel("Solution"));
-            result.add(new JScrollPane(output));
-            add(scrollForm(form));
-            add(result);
-        }
-
-        private void solve() {
-            try {
-                String[] rows = matrix.getText().trim().split(";");
-                JsonArray a = new JsonArray();
-                for (String row : rows) {
-                    JsonArray values = new JsonArray();
-                    for (String value : row.split(",")) values.add(Double.parseDouble(value.trim()));
-                    a.add(values);
-                }
-                JsonArray b = new JsonArray();
-                for (String value : constants.getText().split(",")) {
-                    b.add(Double.parseDouble(value.trim()));
-                }
-                JsonObject req = new JsonObject();
-                req.addProperty("operation", "linear_equations");
-                req.addProperty("method", method.getSelectedIndex() == 0 ? "gauss" : "gauss_jordan");
-                req.add("A", a);
-                req.add("B", b);
-                runPython(req, result -> {
-                    JsonArray solution = result.getAsJsonArray("solution");
-                    StringBuilder text = new StringBuilder("Solution\n\n");
-                    for (int i = 0; i < solution.size(); i++) {
-                        text.append((char) ('x' + i)).append(" = ")
-                                .append(solution.get(i).getAsDouble()).append("\n");
-                    }
-                    output.setText(text.toString());
-                });
-            } catch (Exception ex) {
-                showInputError(ex);
-            }
-        }
-    }
-
-    private class OdePanel extends JPanel {
-        private final JComboBox<String> method = new JComboBox<>(
-                new String[]{"Euler", "Modified Euler", "Runge-Kutta 4"});
-        private final JTextField initial = field("300");
-        private final JTextField capacity = field("1000");
-        private final JTextField duration = field("10");
-        private final JTextField step = field("1");
-        private final JTextField inflowBase = field("20");
-        private final JTextField increase = field("2");
-        private final JTextField outflow = field("5");
-        private final JTextArea output = outputArea();
-
-        OdePanel() {
-            setBackground(BG);
-            setLayout(new GridLayout(1, 2, 15, 0));
-            JPanel form = cardPanel();
-            form.add(sectionLabel("ODE simulation parameters"));
-            addField(form, "Method", method);
-            addField(form, "Initial water (L)", initial);
-            addField(form, "Tank capacity (L)", capacity);
-            addField(form, "Duration (min)", duration);
-            addField(form, "Time step (min)", step);
-            addField(form, "Base inflow (L/min)", inflowBase);
-            addField(form, "Inflow increase per minute", increase);
-            addField(form, "Outflow (L/min)", outflow);
-            JButton run = actionButton("Run ODE method");
-            run.setAlignmentX(Component.LEFT_ALIGNMENT);
-            run.addActionListener(e -> calculate());
-            form.add(Box.createVerticalStrut(12));
-            form.add(run);
-            JPanel result = cardPanel();
-            result.add(sectionLabel("ODE result"));
+            result.add(sectionLabel("Prediction result"));
+            output.setText("Enter the tank and flow details, choose a numerical method, and click Predict Filling Time.");
             result.add(new JScrollPane(output));
             add(scrollForm(form));
             add(result);
@@ -952,28 +779,44 @@ public class AquaPredictApp extends JFrame {
 
         private void calculate() {
             try {
-                String key = method.getSelectedIndex() == 0 ? "euler"
-                        : method.getSelectedIndex() == 1 ? "modified_euler" : "rk4";
+                double cap = number(capacity), start = number(initial), target = number(targetPercent);
+                double dt = number(step), limit = number(maxTime), qIn = number(inflow);
+                double qIncrease = number(inflowIncrease), qOut = number(outflow);
+                if (cap <= 0 || start < 0 || start > cap || target < 0 || target > 100
+                        || dt <= 0 || limit <= 0 || qIn < 0 || qIncrease < 0 || qOut < 0) {
+                    throw new IllegalArgumentException("Enter valid tank, flow, time-step and duration values. Target level must be between 0 and 100%.");
+                }
+                String selected = method.getSelectedItem().toString();
+                String key = selected.equals("Newton-Raphson") ? "newton_raphson"
+                        : selected.equals("False Position") ? "false_position"
+                        : selected.equals("Euler") ? "euler"
+                        : selected.equals("Modified Euler") ? "modified_euler"
+                        : selected.equals("Runge-Kutta 4 (RK4)") ? "rk4" : "bisection";
                 JsonObject req = new JsonObject();
-                req.addProperty("operation", "ode_methods");
+                req.addProperty("operation", "predictor");
                 req.addProperty("method", key);
-                req.addProperty("initial_water", number(initial));
-                req.addProperty("capacity", number(capacity));
-                req.addProperty("simulation_time", number(duration));
-                req.addProperty("time_step", number(step));
-                req.addProperty("inflow_base", number(inflowBase));
-                req.addProperty("inflow_increase", number(increase));
-                req.addProperty("outflow_rate", number(outflow));
+                req.addProperty("capacity", cap);
+                req.addProperty("initial_water", start);
+                req.addProperty("target_percent", target);
+                req.addProperty("inflow_base", qIn);
+                req.addProperty("inflow_increase", qIncrease);
+                req.addProperty("outflow_rate", qOut);
+                req.addProperty("time_step", dt);
+                req.addProperty("max_time", limit);
+                req.addProperty("a", number(lowerBound));
+                req.addProperty("b", number(upperBound));
+                req.addProperty("initial_guess", number(initialGuess));
                 runPython(req, result -> {
-                    output.setText("Method: " + method.getSelectedItem()
-                            + "\nFinal water volume: " + result.get("final_volume").getAsDouble()
-                            + " L\n\nTime (min)      Water (L)\n");
-                    JsonArray times = result.getAsJsonArray("times");
-                    JsonArray levels = result.getAsJsonArray("water_levels");
-                    for (int i = 0; i < times.size(); i++) {
-                        output.append(String.format("%-15s %s%n",
-                                times.get(i).getAsString(), levels.get(i).getAsString()));
-                    }
+                    StringBuilder report = new StringBuilder();
+                    report.append("Selected method: ").append(selected).append("\n");
+                    report.append(String.format("Target tank level: %.1f%% (%.2f L)%n",
+                            result.get("target_percent").getAsDouble(), result.get("target_water").getAsDouble()));
+                    report.append(String.format("%nPredicted filling time: %.4f minutes%n",
+                            result.get("predicted_time").getAsDouble()));
+                    if (result.has("iterations")) report.append("Iterations: ").append(result.get("iterations").getAsInt()).append("\n");
+                    if (result.has("steps")) report.append("Time steps evaluated: ").append(result.get("steps").getAsInt()).append("\n");
+                    report.append("\nEstimate based on the selected numerical method and entered flow model.");
+                    output.setText(report.toString());
                 });
             } catch (Exception ex) {
                 showInputError(ex);
