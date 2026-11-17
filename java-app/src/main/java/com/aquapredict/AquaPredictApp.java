@@ -746,8 +746,25 @@ public class AquaPredictApp extends JFrame {
 
         PredictorPanel() {
             setBackground(BG);
-            setBorder(new EmptyBorder(8, 0, 0, 0));
-            setLayout(new GridLayout(1, 2, 15, 0));
+            setBorder(new EmptyBorder(28, 30, 24, 30));
+            setLayout(new BorderLayout(0, 18));
+
+            JPanel heading = new JPanel();
+            heading.setBackground(BG);
+            heading.setLayout(new BoxLayout(heading, BoxLayout.Y_AXIS));
+            JLabel title = new JLabel("Predictor");
+            title.setForeground(TEXT);
+            title.setFont(new Font("SansSerif", Font.BOLD, 26));
+            JLabel subtitle = new JLabel("Estimate how long it will take to reach your selected tank level.");
+            subtitle.setForeground(MUTED);
+            subtitle.setFont(new Font("SansSerif", Font.PLAIN, 12));
+            heading.add(title);
+            heading.add(Box.createVerticalStrut(6));
+            heading.add(subtitle);
+            add(heading, BorderLayout.NORTH);
+
+            JPanel content = new JPanel(new GridLayout(1, 2, 15, 0));
+            content.setBackground(BG);
             JPanel form = cardPanel();
             form.add(sectionLabel("Tank and flow parameters"));
             addField(form, "Numerical method", method);
@@ -773,8 +790,9 @@ public class AquaPredictApp extends JFrame {
             result.add(sectionLabel("Prediction result"));
             output.setText("Enter the tank and flow details, choose a numerical method, and click Predict Filling Time.");
             result.add(new JScrollPane(output));
-            add(scrollForm(form));
-            add(result);
+            content.add(scrollForm(form));
+            content.add(result);
+            add(content, BorderLayout.CENTER);
         }
 
         private void calculate() {
