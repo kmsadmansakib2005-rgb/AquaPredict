@@ -7,6 +7,7 @@ import com.google.gson.JsonParser;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import java.awt.*;
 import java.awt.geom.Path2D;
 import java.io.BufferedReader;
@@ -432,6 +433,16 @@ public class AquaPredictApp extends JFrame {
         }
     }
 
+    private JScrollPane scrollForm(JPanel form) {
+        JScrollPane scroll = new JScrollPane(form,
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.setBorder(null);
+        scroll.getViewport().setBackground(PANEL);
+        scroll.getVerticalScrollBar().setUnitIncrement(18);
+        return scroll;
+    }
+
     private class LabPanel extends JPanel {
         LabPanel() {
             setBackground(BG);
@@ -451,11 +462,44 @@ public class AquaPredictApp extends JFrame {
             add(heading, BorderLayout.NORTH);
 
             JTabbedPane tabs = new JTabbedPane();
+            tabs.setOpaque(true);
             tabs.setBackground(PANEL);
             tabs.setForeground(TEXT);
+            tabs.setUI(new BasicTabbedPaneUI() {
+                @Override
+                protected void paintTabBackground(Graphics g, int placement, int index,
+                                                  int x, int y, int width, int height,
+                                                  boolean selected) {
+                    g.setColor(selected ? GREEN : PANEL_LIGHT);
+                    g.fillRect(x, y, width, height);
+                }
+
+                @Override
+                protected void paintTabBorder(Graphics g, int placement, int index,
+                                              int x, int y, int width, int height,
+                                              boolean selected) {
+                    // Flat tabs keep the dark interface visually consistent.
+                }
+
+                @Override
+                protected void paintContentBorder(Graphics g, int placement, int selectedIndex) {
+                    g.setColor(PANEL);
+                    g.fillRect(tabPane.getInsets().left, calculateTabAreaHeight(placement, runCount),
+                            tabPane.getWidth() - tabPane.getInsets().left - tabPane.getInsets().right,
+                            tabPane.getHeight() - calculateTabAreaHeight(placement, runCount)
+                                    - tabPane.getInsets().bottom);
+                }
+            });
             tabs.addTab("Root Finding", new RootPanel());
             tabs.addTab("Linear Equations", new LinearPanel());
             tabs.addTab("ODE Methods", new OdePanel());
+            tabs.addChangeListener(e -> {
+                for (int i = 0; i < tabs.getTabCount(); i++) {
+                    tabs.setForegroundAt(i, i == tabs.getSelectedIndex()
+                            ? new Color(8, 25, 22) : TEXT);
+                }
+            });
+            tabs.setForegroundAt(0, new Color(8, 25, 22));
             add(tabs, BorderLayout.CENTER);
         }
     }
@@ -493,7 +537,7 @@ public class AquaPredictApp extends JFrame {
             JPanel result = cardPanel();
             result.add(sectionLabel("Calculation result"));
             result.add(new JScrollPane(output));
-            add(form);
+            add(scrollForm(form));
             add(result);
         }
 
@@ -550,7 +594,7 @@ public class AquaPredictApp extends JFrame {
             JPanel result = cardPanel();
             result.add(sectionLabel("Solution"));
             result.add(new JScrollPane(output));
-            add(form);
+            add(scrollForm(form));
             add(result);
         }
 
@@ -620,7 +664,7 @@ public class AquaPredictApp extends JFrame {
             JPanel result = cardPanel();
             result.add(sectionLabel("ODE result"));
             result.add(new JScrollPane(output));
-            add(form);
+            add(scrollForm(form));
             add(result);
         }
 
