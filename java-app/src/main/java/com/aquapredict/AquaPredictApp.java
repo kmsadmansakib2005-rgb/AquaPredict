@@ -352,8 +352,11 @@ public class AquaPredictApp extends JFrame {
         private final JLabel pumpStatus = new JLabel("Pump: --");
         private final JLabel pumpEventSummary = new JLabel("Pump events will appear after simulation.");
         private final JLabel finalVolume = new JLabel("-- L");
+        private final JLabel simulationClock = new JLabel("Elapsed time: 0.0 min");
         private final WaterChart chart = new WaterChart();
         private final TankDrawing tank = new TankDrawing();
+        private JButton runButton;
+        private Timer animationTimer;
 
         TankPanel() {
             setBackground(BG);
@@ -400,20 +403,23 @@ public class AquaPredictApp extends JFrame {
             form.add(Box.createVerticalStrut(8));
             form.add(pumpStatus);
             form.add(pumpEventSummary);
-            JButton run = actionButton("Run Simulation");
-            run.setAlignmentX(Component.LEFT_ALIGNMENT);
-            run.setBorder(new EmptyBorder(12, 20, 12, 20));
-            run.addActionListener(e -> simulate());
+            runButton = actionButton("Start Simulation");
+            runButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+            runButton.setBorder(new EmptyBorder(12, 20, 12, 20));
+            runButton.addActionListener(e -> simulate());
             form.add(Box.createVerticalStrut(15));
-            form.add(run);
+            form.add(runButton);
 
             JPanel visual = cardPanel();
             visual.add(sectionLabel("Live tank model"));
             tank.setPreferredSize(new Dimension(300, 235));
             visual.add(tank);
+            simulationClock.setForeground(MUTED);
+            simulationClock.setFont(new Font("SansSerif", Font.PLAIN, 11));
+            visual.add(simulationClock);
             finalVolume.setForeground(GREEN);
             finalVolume.setFont(new Font("SansSerif", Font.BOLD, 27));
-            visual.add(Box.createVerticalStrut(8));
+            visual.add(Box.createVerticalStrut(5));
             visual.add(finalVolume);
             JLabel chartTitle = new JLabel("Water volume over time");
             chartTitle.setForeground(MUTED);
@@ -428,6 +434,10 @@ public class AquaPredictApp extends JFrame {
 
         private void simulate() {
             try {
+                if (animationTimer != null && animationTimer.isRunning()) animationTimer.stop();
+                runButton.setEnabled(false);
+                runButton.setText("Preparing simulation...");
+
                 JsonObject request = new JsonObject();
                 request.addProperty("operation", "tank_simulation");
                 request.addProperty("capacity", number(capacity));
@@ -439,51 +449,162 @@ public class AquaPredictApp extends JFrame {
                 request.addProperty("automatic_pump", automaticPump.isSelected());
                 request.addProperty("pump_on_below_percent", number(pumpOnBelow));
                 request.addProperty("pump_off_at_percent", number(pumpOffAt));
+
                 if (integer(duration) <= 0 || integer(step) <= 0) {
                     throw new IllegalArgumentException("Duration and time step must be positive integers.");
                 }
                 if (automaticPump.isSelected()
-                        && (number(pumpOnBelow) < 0
-                        || number(pumpOffAt) > 100
+                        && (number(pumpOnBelow) < 0 || number(pumpOffAt) > 100
                         || number(pumpOnBelow) >= number(pumpOffAt))) {
                     throw new IllegalArgumentException(
                             "Pump thresholds must satisfy 0 <= ON threshold < OFF threshold <= 100.");
                 }
+
                 runPython(request, result -> {
-                    double finalValue = result.get("final_volume").getAsDouble();
-                    finalVolume.setText(String.format("%.2f L", finalValue));
-                    dashboardVolume.setText(String.format("%.2f L", finalValue));
-                    dashboardStatus.setText("Simulation complete");
                     List<Double> times = toList(result.getAsJsonArray("times"));
                     List<Double> levels = toList(result.getAsJsonArray("water_levels"));
-                    chart.setData(times, levels);
-                    dashboardChart.setData(times, levels);
-                    tank.setLevel(finalValue / number(capacity));
-                    if (automaticPump.isSelected()) {
-                        boolean pumpOn = result.get("pump_on").getAsBoolean();
-                        pumpStatus.setText("Virtual pump: " + (pumpOn ? "ON" : "OFF"));
-                        pumpStatus.setForeground(pumpOn ? GREEN : new Color(255, 120, 105));
-                        JsonArray events = result.getAsJsonArray("pump_events");
-                        if (!events.isEmpty()) {
-                            JsonObject lastEvent = events.get(events.size() - 1).getAsJsonObject();
-                            String eventState = lastEvent.get("pump_on").getAsBoolean() ? "ON" : "OFF";
-                            double eventTime = lastEvent.get("time").getAsDouble();
-                            String reason = lastEvent.get("reason").getAsString();
-                            pumpEventSummary.setText(String.format(
-                                    "<html>%d event(s) • Last: Pump %s at %.1f min<br>%s</html>",
-                                    events.size(), eventState, eventTime, reason));
-                        }
-                        dashboardStatus.setText("Pump " + (pumpOn ? "ON" : "OFF") + " • Simulation complete");
+                    JsonArray events = result.getAsJsonArray("pump_events");
+                    boolean pumpEnabled = result.get("pump_enabled").getAsBoolean();
+                    double tankCapacity = number(capacity);
+
+                    chart.setData(List.of(times.get(0)), List.of(levels.get(0)));
+                    dashboardChart.setData(List.of(times.get(0)), List.of(levels.get(0)));
+                    tank.setState(levels.get(0) / tankCapacity,
+                            pumpEnabled && initialPumpState(events), 0);
+                    finalVolume.setText(String.format("%.1f L", levels.get(0)));
+                    simulationClock.setText("Elapsed time: 0.0 min");
+
+                    if (pumpEnabled && initialPumpState(events)) {
+                        pumpStatus.setText("MOTOR ON • PUMPING WATER");
+                        pumpStatus.setForeground(GREEN);
+                        pumpEventSummary.setText("Water is flowing into the tank...");
+                        dashboardStatus.setText("Motor ON • Pumping water");
                     } else {
-                        pumpStatus.setText("Virtual pump: DISABLED");
-                        pumpStatus.setForeground(MUTED);
-                        pumpEventSummary.setText("Open-loop simulation: pump control is disabled.");
-                        dashboardStatus.setText("Simulation complete • Pump control disabled");
+                        pumpStatus.setText(pumpEnabled ? "MOTOR OFF" : "MOTOR CONTROL DISABLED");
+                        pumpStatus.setForeground(pumpEnabled
+                                ? new Color(255, 120, 105) : MUTED);
+                        pumpEventSummary.setText(pumpEnabled
+                                ? "Motor is off; waiting for the lower water threshold."
+                                : "Automatic virtual pump is disabled.");
+                        dashboardStatus.setText(pumpEnabled ? "Motor OFF" : "Pump disabled");
                     }
+
+                    runButton.setText("Simulation running...");
+                    status.setText("Live tank simulation in progress...");
+                    playSimulation(times, levels, events, pumpEnabled, tankCapacity);
                 });
             } catch (Exception ex) {
+                runButton.setEnabled(true);
+                runButton.setText("Start Simulation");
                 showInputError(ex);
             }
+        }
+
+        private boolean initialPumpState(JsonArray events) {
+            return !events.isEmpty()
+                    && events.get(0).getAsJsonObject().get("pump_on").getAsBoolean();
+        }
+
+        private void playSimulation(List<Double> times, List<Double> levels,
+                                    JsonArray events, boolean pumpEnabled, double tankCapacity) {
+            if (animationTimer != null && animationTimer.isRunning()) animationTimer.stop();
+
+            int frameCount = Math.max(1, (times.size() - 1) * 5);
+            int[] frame = {0};
+            animationTimer = new Timer(100, event -> {
+                frame[0]++;
+                double progress = Math.min(1.0, (double) frame[0] / frameCount);
+                double currentTime = times.get(times.size() - 1) * progress;
+
+                int segment = 0;
+                while (segment < times.size() - 2 && times.get(segment + 1) < currentTime) {
+                    segment++;
+                }
+                double segmentStart = times.get(segment);
+                double segmentEnd = times.get(Math.min(segment + 1, times.size() - 1));
+                double fraction = segmentEnd == segmentStart ? 1.0
+                        : Math.max(0, Math.min(1, (currentTime - segmentStart)
+                        / (segmentEnd - segmentStart)));
+                double currentVolume = levels.get(segment)
+                        + (levels.get(Math.min(segment + 1, levels.size() - 1))
+                        - levels.get(segment)) * fraction;
+
+                boolean motorOn = pumpEnabled && pumpStateAt(events, currentTime);
+                tank.setState(currentVolume / tankCapacity, motorOn, frame[0]);
+
+                List<Double> visibleTimes = new ArrayList<>();
+                List<Double> visibleLevels = new ArrayList<>();
+                for (int i = 0; i <= segment; i++) {
+                    visibleTimes.add(times.get(i));
+                    visibleLevels.add(levels.get(i));
+                }
+                if (visibleTimes.isEmpty() || currentTime > visibleTimes.get(visibleTimes.size() - 1)) {
+                    visibleTimes.add(currentTime);
+                    visibleLevels.add(currentVolume);
+                }
+                chart.setData(visibleTimes, visibleLevels);
+                dashboardChart.setData(visibleTimes, visibleLevels);
+
+                double percentage = currentVolume / tankCapacity * 100.0;
+                finalVolume.setText(String.format("%.1f L  (%.1f%%)", currentVolume, percentage));
+                simulationClock.setText(String.format("Elapsed time: %.1f / %.1f min",
+                        currentTime, times.get(times.size() - 1)));
+
+                if (pumpEnabled && motorOn) {
+                    pumpStatus.setText("MOTOR ON • PUMPING WATER");
+                    pumpStatus.setForeground(GREEN);
+                    pumpEventSummary.setText("Water is flowing into the tank. The motor will stop at "
+                            + pumpOffAt.getText().trim() + "%.");
+                    dashboardStatus.setText("Motor ON • Pumping water");
+                } else if (pumpEnabled) {
+                    pumpStatus.setText("MOTOR OFF • WATER INLET STOPPED");
+                    pumpStatus.setForeground(new Color(255, 120, 105));
+                    pumpEventSummary.setText("Motor is OFF. Water inlet flow has stopped.");
+                    dashboardStatus.setText("Motor OFF • Inlet stopped");
+                } else {
+                    pumpStatus.setText("MOTOR CONTROL DISABLED");
+                    pumpStatus.setForeground(MUTED);
+                    dashboardStatus.setText("Open-loop simulation");
+                }
+
+                if (progress >= 1.0) {
+                    animationTimer.stop();
+                    runButton.setEnabled(true);
+                    runButton.setText("Run Again");
+                    finalVolume.setText(String.format("%.2f L", levels.get(levels.size() - 1)));
+                    dashboardVolume.setText(String.format("%.2f L", levels.get(levels.size() - 1)));
+                    simulationClock.setText(String.format("Simulation completed • %.1f min",
+                            times.get(times.size() - 1)));
+                    if (pumpEnabled) {
+                        boolean finalPumpState = pumpStateAt(events, times.get(times.size() - 1));
+                        pumpStatus.setText(finalPumpState
+                                ? "MOTOR ON • PUMPING WATER" : "MOTOR OFF • INLET STOPPED");
+                        pumpStatus.setForeground(finalPumpState ? GREEN : new Color(255, 120, 105));
+                        dashboardStatus.setText(finalPumpState
+                                ? "Simulation complete • Motor ON" : "Simulation complete • Motor OFF");
+                        pumpEventSummary.setText(finalPumpState
+                                ? "Simulation ended while the motor was running."
+                                : "Tank reached the OFF threshold. Motor stopped automatically.");
+                    } else {
+                        dashboardStatus.setText("Simulation complete • Pump disabled");
+                    }
+                    status.setText("Tank simulation completed");
+                }
+            });
+            animationTimer.start();
+        }
+
+        private boolean pumpStateAt(JsonArray events, double simulationTime) {
+            boolean state = false;
+            for (int i = 0; i < events.size(); i++) {
+                JsonObject pumpEvent = events.get(i).getAsJsonObject();
+                if (pumpEvent.get("time").getAsDouble() <= simulationTime + 1e-9) {
+                    state = pumpEvent.get("pump_on").getAsBoolean();
+                } else {
+                    break;
+                }
+            }
+            return state;
         }
     }
 
@@ -843,13 +964,17 @@ public class AquaPredictApp extends JFrame {
 
     private static class TankDrawing extends JPanel {
         private double level = 0.30;
+        private boolean pumpOn = true;
+        private int animationFrame = 0;
 
         TankDrawing() {
             setBackground(PANEL);
         }
 
-        void setLevel(double level) {
+        void setState(double level, boolean pumpOn, int animationFrame) {
             this.level = Math.max(0, Math.min(1, level));
+            this.pumpOn = pumpOn;
+            this.animationFrame = animationFrame;
             repaint();
         }
 
@@ -858,17 +983,67 @@ public class AquaPredictApp extends JFrame {
             super.paintComponent(graphics);
             Graphics2D g = (Graphics2D) graphics.create();
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            int w = 112, h = 190;
-            int x = (getWidth() - w) / 2, y = 12;
+
+            int tankW = 112, tankH = 174;
+            int tankX = getWidth() - tankW - 28, tankY = 28;
+            int waterHeight = (int) (tankH * level);
+            int motorX = 20, motorY = 65;
+
+            // Pipe and motor illustration.
+            g.setColor(new Color(105, 133, 142));
+            g.setStroke(new BasicStroke(7, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.drawLine(motorX + 38, motorY + 14, tankX + tankW / 2, motorY + 14);
+            g.drawLine(tankX + tankW / 2, motorY + 14, tankX + tankW / 2, tankY + 2);
+
+            g.setColor(pumpOn ? GREEN : new Color(105, 120, 128));
+            g.fillRoundRect(motorX, motorY, 42, 30, 8, 8);
+            g.setColor(new Color(8, 25, 22));
+            g.setStroke(new BasicStroke(2));
+            g.drawOval(motorX + 11, motorY + 6, 18, 18);
+            g.drawLine(motorX + 20, motorY + 9, motorX + 20, motorY + 21);
+
+            g.setFont(new Font("SansSerif", Font.BOLD, 10));
+            g.setColor(pumpOn ? GREEN : new Color(255, 120, 105));
+            g.drawString(pumpOn ? "MOTOR ON" : "MOTOR OFF", motorX - 1, motorY + 48);
+
+            if (pumpOn) {
+                g.setColor(new Color(69, 211, 235));
+                g.setStroke(new BasicStroke(3, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g.drawLine(tankX + tankW / 2, tankY + 2, tankX + tankW / 2, tankY + 25);
+                for (int i = 0; i < 4; i++) {
+                    int dropY = tankY + 24 + Math.floorMod(animationFrame * 5 + i * 13, 34);
+                    g.fillOval(tankX + tankW / 2 - 3, dropY, 6, 9);
+                }
+                g.setFont(new Font("SansSerif", Font.PLAIN, 9));
+                g.drawString("WATER FLOW", motorX - 1, motorY + 62);
+            } else {
+                g.setColor(new Color(255, 120, 105));
+                g.setStroke(new BasicStroke(2));
+                g.drawLine(tankX + tankW / 2 - 5, tankY + 10,
+                        tankX + tankW / 2 + 5, tankY + 20);
+                g.drawLine(tankX + tankW / 2 + 5, tankY + 10,
+                        tankX + tankW / 2 - 5, tankY + 20);
+                g.setFont(new Font("SansSerif", Font.PLAIN, 9));
+                g.drawString("FLOW STOPPED", motorX - 1, motorY + 62);
+            }
+
+            // Tank outline and moving water level.
             g.setColor(new Color(105, 133, 142));
             g.setStroke(new BasicStroke(3));
-            g.drawRoundRect(x, y, w, h, 18, 18);
-            int waterHeight = (int) (h * level);
-            g.setColor(new Color(29, 167, 145, 190));
-            g.fillRoundRect(x + 3, y + h - waterHeight, w - 6, waterHeight, 14, 14);
+            g.drawRoundRect(tankX, tankY, tankW, tankH, 18, 18);
+            if (waterHeight > 0) {
+                g.setColor(new Color(29, 167, 205, 205));
+                g.fillRoundRect(tankX + 3, tankY + tankH - waterHeight,
+                        tankW - 6, waterHeight, 14, 14);
+                g.setColor(new Color(120, 230, 245, 190));
+                g.setStroke(new BasicStroke(2));
+                int surfaceY = tankY + tankH - waterHeight + 3;
+                g.drawLine(tankX + 8, surfaceY, tankX + tankW - 8, surfaceY);
+            }
+
             g.setColor(TEXT);
             g.setFont(new Font("SansSerif", Font.BOLD, 12));
-            g.drawString(String.format("%.0f%%", level * 100), x + 40, y + h + 22);
+            g.drawString(String.format("%.0f%%", level * 100), tankX + 40, tankY + tankH + 22);
             g.dispose();
         }
     }
