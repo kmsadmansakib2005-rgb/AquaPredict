@@ -241,6 +241,7 @@ public class AquaPredictApp extends JFrame {
                     onSuccess.accept(response.getAsJsonObject("result"));
                 } catch (Exception ex) {
                     status.setText("Calculation failed");
+                    tankPanel.calculationFailed();
                     JOptionPane.showMessageDialog(AquaPredictApp.this,
                             ex.getMessage(), "AquaPredict Error", JOptionPane.ERROR_MESSAGE);
                 }
@@ -357,6 +358,7 @@ public class AquaPredictApp extends JFrame {
         private final TankDrawing tank = new TankDrawing();
         private JButton runButton;
         private Timer animationTimer;
+        private boolean preparingSimulation;
 
         TankPanel() {
             setBackground(BG);
@@ -435,6 +437,7 @@ public class AquaPredictApp extends JFrame {
         private void simulate() {
             try {
                 if (animationTimer != null && animationTimer.isRunning()) animationTimer.stop();
+                preparingSimulation = true;
                 runButton.setEnabled(false);
                 runButton.setText("Preparing simulation...");
 
@@ -461,6 +464,7 @@ public class AquaPredictApp extends JFrame {
                 }
 
                 runPython(request, result -> {
+                    preparingSimulation = false;
                     List<Double> times = toList(result.getAsJsonArray("times"));
                     List<Double> levels = toList(result.getAsJsonArray("water_levels"));
                     JsonArray events = result.getAsJsonArray("pump_events");
@@ -494,9 +498,18 @@ public class AquaPredictApp extends JFrame {
                     playSimulation(times, levels, events, pumpEnabled, tankCapacity);
                 });
             } catch (Exception ex) {
+                preparingSimulation = false;
                 runButton.setEnabled(true);
                 runButton.setText("Start Simulation");
                 showInputError(ex);
+            }
+        }
+
+        private void calculationFailed() {
+            if (preparingSimulation) {
+                preparingSimulation = false;
+                runButton.setEnabled(true);
+                runButton.setText("Start Simulation");
             }
         }
 
@@ -547,6 +560,7 @@ public class AquaPredictApp extends JFrame {
 
                 double percentage = currentVolume / tankCapacity * 100.0;
                 finalVolume.setText(String.format("%.1f L  (%.1f%%)", currentVolume, percentage));
+                dashboardVolume.setText(String.format("%.1f L", currentVolume));
                 simulationClock.setText(String.format("Elapsed time: %.1f / %.1f min",
                         currentTime, times.get(times.size() - 1)));
 
