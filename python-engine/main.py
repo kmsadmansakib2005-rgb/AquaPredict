@@ -60,19 +60,19 @@ def process_request(data):
 
         if method == "bisection":
             root, iterations = bisection(
-                initial_water, net_rate, target_water,
+                initial_water, net_rate, 0, target_water,
                 data["a"], data["b"]
             )
 
         elif method == "false_position":
             root, iterations = false_position(
-                initial_water, net_rate, target_water,
+                initial_water, net_rate, 0, target_water,
                 data["a"], data["b"]
             )
 
         elif method == "newton_raphson":
             root, iterations = newton_raphson(
-                initial_water, net_rate, target_water,
+                initial_water, net_rate, 0, target_water,
                 data["initial_guess"]
             )
 
