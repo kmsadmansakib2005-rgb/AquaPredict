@@ -483,11 +483,7 @@ public class AquaPredictApp extends JFrame {
 
                 @Override
                 protected void paintContentBorder(Graphics g, int placement, int selectedIndex) {
-                    g.setColor(PANEL);
-                    g.fillRect(tabPane.getInsets().left, calculateTabAreaHeight(placement, runCount),
-                            tabPane.getWidth() - tabPane.getInsets().left - tabPane.getInsets().right,
-                            tabPane.getHeight() - calculateTabAreaHeight(placement, runCount)
-                                    - tabPane.getInsets().bottom);
+                    // The parent panel supplies the dark content background.
                 }
             });
             tabs.addTab("Root Finding", new RootPanel());
