@@ -120,6 +120,7 @@ def automatic_pump_simulation(
         "times": times,
         "water_levels": water_levels,
         "final_volume": water_levels[-1],
+        "pump_enabled": True,
         "pump_states": pump_states,
         "pump_on": pump_on,
         "pump_events": pump_events
