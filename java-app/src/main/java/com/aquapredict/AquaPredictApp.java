@@ -193,9 +193,7 @@ public class AquaPredictApp extends JFrame {
         new SwingWorker<JsonObject, Void>() {
             @Override
             protected JsonObject doInBackground() throws Exception {
-                Path engine = locatePythonEngine();
-                Process process = new ProcessBuilder("python", "main.py")
-                        .directory(engine.toFile()).start();
+                Process process = startPythonEngine();
 
                 try (BufferedWriter writer = new BufferedWriter(
                         new OutputStreamWriter(process.getOutputStream()))) {
@@ -247,6 +245,25 @@ public class AquaPredictApp extends JFrame {
                 }
             }
         }.execute();
+    }
+
+    private Process startPythonEngine() throws Exception {
+        // Installed builds include a self-contained Python engine beside the application JAR.
+        Path codeLocation = Paths.get(
+                AquaPredictApp.class.getProtectionDomain().getCodeSource().getLocation().toURI()
+        ).toAbsolutePath().normalize();
+        Path appDirectory = Files.isDirectory(codeLocation) ? codeLocation : codeLocation.getParent();
+        Path bundledEngine = appDirectory.resolve("AquaPredictEngine").resolve("AquaPredictEngine.exe");
+
+        if (Files.isRegularFile(bundledEngine)) {
+            return new ProcessBuilder(bundledEngine.toString())
+                    .directory(bundledEngine.getParent().toFile())
+                    .start();
+        }
+
+        // Development mode: use the local Python source tree and installed Python interpreter.
+        Path engine = locatePythonEngine();
+        return new ProcessBuilder("python", "main.py").directory(engine.toFile()).start();
     }
 
     private Path locatePythonEngine() throws Exception {
