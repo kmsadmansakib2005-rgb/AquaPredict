@@ -536,7 +536,7 @@ public class AquaPredictApp extends JFrame {
                                     JsonArray events, boolean pumpEnabled, double tankCapacity) {
             if (animationTimer != null && animationTimer.isRunning()) animationTimer.stop();
 
-            int frameCount = Math.max(1, (times.size() - 1) * 5);
+            int frameCount = Math.max(1, (times.size() - 1) * 10);
             int[] frame = {0};
             animationTimer = new Timer(100, event -> {
                 frame[0]++;
