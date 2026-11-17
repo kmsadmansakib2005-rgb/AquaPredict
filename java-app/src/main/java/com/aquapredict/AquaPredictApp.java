@@ -52,6 +52,7 @@ public class AquaPredictApp extends JFrame {
         pages.add(new DashboardPanel(), "Dashboard");
         pages.add(tankPanel, "Tank Simulation");
         pages.add(new LabPanel(), "Numerical Lab");
+        pages.add(new AboutPanel(), "About");
 
         add(buildSidebar(), BorderLayout.WEST);
         add(pages, BorderLayout.CENTER);
@@ -81,6 +82,8 @@ public class AquaPredictApp extends JFrame {
         side.add(navButton("Tank Simulation", "Simulate water levels"));
         side.add(Box.createVerticalStrut(9));
         side.add(navButton("Numerical Lab", "Run numerical methods"));
+        side.add(Box.createVerticalStrut(9));
+        side.add(navButton("About", "Meet the creator"));
 
         side.add(Box.createVerticalGlue());
         JLabel version = new JLabel("AQUAPREDICT  •  VERSION 1.0");
@@ -109,11 +112,7 @@ public class AquaPredictApp extends JFrame {
         bar.setBorder(new EmptyBorder(9, 18, 9, 18));
         status.setForeground(MUTED);
         status.setFont(new Font("SansSerif", Font.PLAIN, 11));
-        JLabel right = new JLabel("JAVA SWING  +  PYTHON");
-        right.setForeground(GREEN);
-        right.setFont(new Font("SansSerif", Font.BOLD, 10));
         bar.add(status, BorderLayout.WEST);
-        bar.add(right, BorderLayout.EAST);
         return bar;
     }
 
@@ -285,6 +284,96 @@ public class AquaPredictApp extends JFrame {
         }
         throw new IllegalStateException("Cannot find python-engine/main.py. "
                 + "Open the AquaPredict project folder or configure the Python engine path.");
+    }
+
+
+    private class AboutPanel extends JPanel {
+        AboutPanel() {
+            setBackground(BG);
+            setBorder(new EmptyBorder(28, 30, 24, 30));
+            setLayout(new BorderLayout(0, 20));
+            JLabel title = new JLabel("About the Creator");
+            title.setForeground(TEXT);
+            title.setFont(new Font("SansSerif", Font.BOLD, 27));
+            JLabel subtitle = new JLabel("The person behind AquaPredict.");
+            subtitle.setForeground(MUTED);
+            subtitle.setFont(new Font("SansSerif", Font.PLAIN, 12));
+            JPanel heading = new JPanel();
+            heading.setBackground(BG);
+            heading.setLayout(new BoxLayout(heading, BoxLayout.Y_AXIS));
+            heading.add(title);
+            heading.add(Box.createVerticalStrut(6));
+            heading.add(subtitle);
+            add(heading, BorderLayout.NORTH);
+
+            JPanel profile = new JPanel();
+            profile.setBackground(PANEL);
+            profile.setBorder(new EmptyBorder(28, 30, 28, 30));
+            profile.setLayout(new BoxLayout(profile, BoxLayout.Y_AXIS));
+            JLabel portrait = new JLabel();
+            portrait.setAlignmentX(Component.CENTER_ALIGNMENT);
+            portrait.setPreferredSize(new Dimension(220, 220));
+            portrait.setMinimumSize(new Dimension(220, 220));
+            portrait.setMaximumSize(new Dimension(220, 220));
+            try (java.io.InputStream stream = getClass().getResourceAsStream("/images/creator.jpg")) {
+                if (stream != null) {
+                    Image image = javax.imageio.ImageIO.read(stream).getScaledInstance(220, 220, Image.SCALE_SMOOTH);
+                    portrait.setIcon(new ImageIcon(image));
+                } else {
+                    portrait.setText("KS");
+                    portrait.setForeground(GREEN);
+                    portrait.setFont(new Font("SansSerif", Font.BOLD, 48));
+                }
+            } catch (Exception ex) {
+                portrait.setText("KS");
+                portrait.setForeground(GREEN);
+                portrait.setFont(new Font("SansSerif", Font.BOLD, 48));
+            }
+            profile.add(portrait);
+            profile.add(Box.createVerticalStrut(22));
+            JLabel name = new JLabel("K. M. Sadman Sakib");
+            name.setForeground(TEXT);
+            name.setFont(new Font("SansSerif", Font.BOLD, 25));
+            name.setAlignmentX(Component.CENTER_ALIGNMENT);
+            profile.add(name);
+            JLabel role = new JLabel("CREATOR & DEVELOPER");
+            role.setForeground(GREEN);
+            role.setFont(new Font("SansSerif", Font.BOLD, 11));
+            role.setAlignmentX(Component.CENTER_ALIGNMENT);
+            role.setBorder(new EmptyBorder(8, 0, 24, 0));
+            profile.add(role);
+            profile.add(profileDetail("University", "Bangladesh University of Professionals (BUP)"));
+            profile.add(Box.createVerticalStrut(13));
+            profile.add(profileDetail("Department", "Computer Science and Engineering (CSE)"));
+            profile.add(Box.createVerticalStrut(24));
+            JLabel note = new JLabel("Developed as an academic project for the Numerical Methods Lab.");
+            note.setForeground(MUTED);
+            note.setFont(new Font("SansSerif", Font.PLAIN, 11));
+            note.setAlignmentX(Component.CENTER_ALIGNMENT);
+            profile.add(note);
+            JPanel center = new JPanel(new GridBagLayout());
+            center.setBackground(BG);
+            center.add(profile);
+            add(center, BorderLayout.CENTER);
+        }
+
+        private JPanel profileDetail(String heading, String value) {
+            JPanel item = new JPanel();
+            item.setBackground(PANEL_LIGHT);
+            item.setBorder(new EmptyBorder(12, 16, 12, 16));
+            item.setLayout(new BoxLayout(item, BoxLayout.Y_AXIS));
+            JLabel label = new JLabel(heading.toUpperCase());
+            label.setForeground(MUTED);
+            label.setFont(new Font("SansSerif", Font.BOLD, 9));
+            JLabel content = new JLabel(value);
+            content.setForeground(TEXT);
+            content.setFont(new Font("SansSerif", Font.PLAIN, 13));
+            item.add(label);
+            item.add(Box.createVerticalStrut(5));
+            item.add(content);
+            item.setAlignmentX(Component.CENTER_ALIGNMENT);
+            return item;
+        }
     }
 
     private class DashboardPanel extends JPanel {
