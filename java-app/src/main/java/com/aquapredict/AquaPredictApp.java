@@ -464,7 +464,15 @@ public class AquaPredictApp extends JFrame {
                         pumpStatus.setText("Virtual pump: " + (pumpOn ? "ON" : "OFF"));
                         pumpStatus.setForeground(pumpOn ? GREEN : new Color(255, 120, 105));
                         JsonArray events = result.getAsJsonArray("pump_events");
-                        pumpEventSummary.setText(events.size() + " pump state event(s) during simulation");
+                        if (!events.isEmpty()) {
+                            JsonObject lastEvent = events.get(events.size() - 1).getAsJsonObject();
+                            String eventState = lastEvent.get("pump_on").getAsBoolean() ? "ON" : "OFF";
+                            double eventTime = lastEvent.get("time").getAsDouble();
+                            String reason = lastEvent.get("reason").getAsString();
+                            pumpEventSummary.setText(String.format(
+                                    "<html>%d event(s) • Last: Pump %s at %.1f min<br>%s</html>",
+                                    events.size(), eventState, eventTime, reason));
+                        }
                         dashboardStatus.setText("Pump " + (pumpOn ? "ON" : "OFF") + " • Simulation complete");
                     } else {
                         pumpStatus.setText("Virtual pump: DISABLED");
