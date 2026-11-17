@@ -52,7 +52,6 @@ public class AquaPredictApp extends JFrame {
         pages.add(new DashboardPanel(), "Dashboard");
         pages.add(tankPanel, "Tank Simulation");
         pages.add(new LabPanel(), "Numerical Lab");
-        pages.add(new AboutPanel(), "About");
 
         add(buildSidebar(), BorderLayout.WEST);
         add(pages, BorderLayout.CENTER);
@@ -82,8 +81,6 @@ public class AquaPredictApp extends JFrame {
         side.add(navButton("Tank Simulation", "Simulate water levels"));
         side.add(Box.createVerticalStrut(9));
         side.add(navButton("Numerical Lab", "Run numerical methods"));
-        side.add(Box.createVerticalStrut(9));
-        side.add(navButton("About", "Meet the creator"));
 
         side.add(Box.createVerticalGlue());
         JLabel version = new JLabel("AQUAPREDICT  •  VERSION 1.0");
@@ -113,7 +110,26 @@ public class AquaPredictApp extends JFrame {
         status.setForeground(MUTED);
         status.setFont(new Font("SansSerif", Font.PLAIN, 11));
         bar.add(status, BorderLayout.WEST);
+        JButton aboutButton = new JButton("About");
+        aboutButton.setForeground(TEXT);
+        aboutButton.setBackground(PANEL);
+        aboutButton.setFont(new Font("SansSerif", Font.BOLD, 11));
+        aboutButton.setFocusPainted(false);
+        aboutButton.setBorder(new EmptyBorder(7, 16, 7, 16));
+        aboutButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        aboutButton.addActionListener(e -> showAboutDialog());
+        bar.add(aboutButton, BorderLayout.EAST);
         return bar;
+    }
+
+    private void showAboutDialog() {
+        JDialog dialog = new JDialog(this, "About AquaPredict", true);
+        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        dialog.setContentPane(new AboutPanel());
+        dialog.setSize(620, 700);
+        dialog.setMinimumSize(new Dimension(540, 620));
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
     }
 
     private void showPage(String page) {
